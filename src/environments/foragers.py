@@ -89,8 +89,6 @@ class ForagersEnv(Env):
         initial_wealth: float = 0.5,
         num_foragers: int = NUM_FORAGERS,
         max_turns: int = 10,
-        fairness_weight: float = 1.0,
-        reward_mode: str = "harvest_plus_fairness",
         discrete_action_bins: Optional[int] = None,
         seed: Optional[int] = None,
         world_num_coins: int = NUM_COINS,
@@ -115,13 +113,6 @@ class ForagersEnv(Env):
         self.state = self.initial_state
         self.num_foragers = int(num_foragers)
         self.max_turns = int(max_turns)
-        self.fairness_weight = float(fairness_weight)
-        allowed_reward_modes = {"wealth_minus_inequality", "harvest_plus_fairness"}
-        if reward_mode not in allowed_reward_modes:
-            raise ValueError(
-                f"reward_mode must be one of {sorted(allowed_reward_modes)}, got {reward_mode!r}"
-            )
-        self.reward_mode = reward_mode
         self.discrete_action_bins = discrete_action_bins
         self.turn = 0
         self._rng = np.random.default_rng(seed)
@@ -265,18 +256,15 @@ class ForagersEnv(Env):
             float(wealth_tracker.get_forager_reward(i)) for i in range(self.num_foragers)
         ]
 
+        # 7) Reward = Wealth - Inequality (Edgar's spec).
+        # Wealth = sum of all participant scores.
         total_wealth = float(manager_wealth + sum(foragers_wealth))
 
-        # Between-role inequality: manager vs average forager wealth.
-        forager_mean_wealth = float(np.mean(foragers_wealth))
-        role_inequality = float(np.std([manager_wealth, forager_mean_wealth]))
+        # Inequality = MSD between manager and each forager, normalized by Wealth.
+        msd = float(np.mean([(manager_wealth - fw) ** 2 for fw in foragers_wealth]))
+        inequality = msd / total_wealth if total_wealth > 0 else 0.0
 
-        # Keep both formulations available; default is paper-safe for Edgar.
-        fairness = float(-self.fairness_weight * role_inequality)
-        if self.reward_mode == "wealth_minus_inequality":
-            reward = float(total_wealth - self.fairness_weight * role_inequality)
-        else:
-            reward = float(harvest + fairness)
+        reward = float(total_wealth - inequality)
 
         max_possible_wealth = float(max(1, world.count_coins()) + COORDINATOR_ENDOWMENT)
         new_wealth = float(np.clip(total_wealth / max_possible_wealth, 0.0, 1.0))
@@ -287,10 +275,10 @@ class ForagersEnv(Env):
             "forager_investment": float(forager_investment),
             "max_speed": float(max_speed),
             "manager_wealth": manager_wealth,
-            "forager_mean_wealth": forager_mean_wealth,
+            "forager_mean_wealth": float(np.mean(foragers_wealth)),
             "total_wealth": total_wealth,
-            "fairness": fairness,
-            "role_inequality": role_inequality,
+            "inequality": inequality,
+            "reward": reward,
             "coins_collected_0": float(coins_collected[0]) if len(coins_collected) > 0 else 0.0,
             "coins_collected_1": float(coins_collected[1]) if len(coins_collected) > 1 else 0.0,
             "visited_paths": float(sum(len(v) for v in tiles_visited)),

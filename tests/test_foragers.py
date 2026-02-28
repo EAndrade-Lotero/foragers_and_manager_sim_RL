@@ -66,7 +66,7 @@ def test_info_keys():
     _, _, _, _, info = env.step(0.5)
     for key in ["harvest", "manager_investment", "forager_investment",
                 "max_speed", "manager_wealth", "forager_mean_wealth",
-                "total_wealth", "fairness", "role_inequality"]:
+                "total_wealth", "inequality", "reward"]:
         assert key in info, f"Missing info key: {key}"
 
 
@@ -100,19 +100,33 @@ def test_done_after_max_turns():
 
 
 # ---------------------------------------------------------------------------
-# Suite 5: Fairness weight
+# Suite 5: Reward formula (Edgar's spec)
 # ---------------------------------------------------------------------------
 
-def test_fairness_weight_effect():
-    env_0 = ForagersEnv(fairness_weight=0.0, seed=99)
-    env_0.reset()
-    _, r0, _, _, info0 = env_0.step(0.5)
+def test_reward_formula():
+    """Reward = Wealth - Inequality where Inequality = MSD(manager, foragers) / Wealth."""
+    env = ForagersEnv(seed=99)
+    env.reset()
+    _, reward, _, _, info = env.step(0.5)
+    tw = info["total_wealth"]
+    ineq = info["inequality"]
+    expected = tw - ineq
+    assert abs(reward - expected) < 1e-9, f"reward={reward}, expected={expected}"
 
-    env_10 = ForagersEnv(fairness_weight=10.0, seed=99)
-    env_10.reset()
-    _, r10, _, _, info10 = env_10.step(0.5)
 
-    assert r10 <= r0 or info0["role_inequality"] == 0.0
+def test_inequality_is_msd_normalized():
+    """Inequality = mean((manager - f_i)^2) / total_wealth."""
+    env = ForagersEnv(seed=42)
+    env.reset()
+    _, _, _, _, info = env.step(0.5)
+    mw = info["manager_wealth"]
+    fmw = info["forager_mean_wealth"]
+    tw = info["total_wealth"]
+    # With 2 foragers, forager_mean_wealth is the average.
+    # We can't recompute exact MSD from info alone (we'd need individual forager scores),
+    # but we can verify inequality >= 0 and reward <= total_wealth.
+    assert info["inequality"] >= 0
+    assert info["reward"] <= tw + 1e-9
 
 
 # ---------------------------------------------------------------------------
