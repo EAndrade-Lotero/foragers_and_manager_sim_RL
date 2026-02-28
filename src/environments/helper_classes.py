@@ -1,6 +1,7 @@
 # Helper classes to be used in the experiment
 import PIL
 import json
+import logging
 
 import matplotlib
 import numpy as np
@@ -20,23 +21,41 @@ from typing import (
     Optional, Union, Any
 )
 
+logger = logging.getLogger(__name__)
+
 Pos = Tuple[int, int]  # (x, y)
 Number = Union[int, float]
 
-from game_parameters import (
-    WORLD_WIDTH,
-    WORLD_HEIGHT,
-    NUM_COINS,
-    NUM_CENTROIDS,
-    DISPERSION,
-    NUM_FORAGERS,
-    INITIAL_WEALTH,
-    COORDINATOR_ENDOWMENT,
-    RNG,
-    ASSETS_PATHS,
-    MAX_MOVEMENT,
-    COLLECTION_CHANCE,
-)
+try:
+    from .game_parameters import (
+        WORLD_WIDTH,
+        WORLD_HEIGHT,
+        NUM_COINS,
+        NUM_CENTROIDS,
+        DISPERSION,
+        NUM_FORAGERS,
+        INITIAL_WEALTH,
+        COORDINATOR_ENDOWMENT,
+        RNG,
+        ASSETS_PATHS,
+        MAX_MOVEMENT,
+        COLLECTION_CHANCE,
+    )
+except ImportError:  # pragma: no cover - fallback for direct execution
+    from game_parameters import (
+        WORLD_WIDTH,
+        WORLD_HEIGHT,
+        NUM_COINS,
+        NUM_CENTROIDS,
+        DISPERSION,
+        NUM_FORAGERS,
+        INITIAL_WEALTH,
+        COORDINATOR_ENDOWMENT,
+        RNG,
+        ASSETS_PATHS,
+        MAX_MOVEMENT,
+        COLLECTION_CHANCE,
+    )
 
 
 def manhattan(a: Pos, b: Pos) -> int:
