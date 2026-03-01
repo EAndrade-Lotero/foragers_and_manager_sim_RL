@@ -96,7 +96,7 @@ class ForagersEnv(Env):
         self.forager = Forager(Manager(), self.num_foragers)
 
         self.render_mode: Optional[str] = None
-        self.debug = True
+        self.debug = False
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> State_Info:
         super().reset(seed=seed)
@@ -104,7 +104,7 @@ class ForagersEnv(Env):
         self.turn = 0
         return self.state, {}
 
-    def step(self, action: int) -> Result:
+    def step(self, action: float) -> Result:
         new_rate = self._parse_action(action)
 
         _, old_wealth = self.state
