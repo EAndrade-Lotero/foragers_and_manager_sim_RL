@@ -47,6 +47,7 @@ class Forager:
         return estimated_reward > self.budget
 
     def estimated_harvest(self, state: State) -> float:
+        # print(f"=====>: Manager budget: {self.manager.budget}  Wealth * Rate: {np.prod(state)}")
         if self.manager.gives_good_coordinates(state):
             return np.clip(self.budget / 0.1, 0.0, 1.0) / self.num_foragers
         return 0.0
@@ -55,10 +56,10 @@ class Forager:
         rate = state[0]
         if self.goes_foraging(state):
             remaining = np.clip(self.budget - self.optimal_investment, 0.0, 1.0)
-            print(f"\tForager invests: {self.optimal_investment}, Remaining budget: {remaining}")
+            # print(f"\tForager invests: {self.optimal_investment}, Remaining budget: {remaining}")
             my_harvest = self.estimated_harvest(state)
-            print(f"\tManager good?: {self.manager.gives_good_coordinates(state)}")
-            print(f"\tEstimated harvest: {self.estimated_harvest(state)}")
+            # print(f"\tManager good?: {self.manager.gives_good_coordinates(state)}")
+            # print(f"\tEstimated harvest: {self.estimated_harvest(state)}")
             new_budget = (1 - rate) * my_harvest + remaining
             self.budget = new_budget
         return self.budget
@@ -92,7 +93,7 @@ class ForagersEnv(Env):
         self.turn = 0
 
         self.manager = Manager()
-        self.forager = Forager(self.manager, self.num_foragers)
+        self.forager = Forager(Manager(), self.num_foragers)
 
         self.render_mode: Optional[str] = None
         self.debug = True
@@ -107,15 +108,16 @@ class ForagersEnv(Env):
         new_rate = self._parse_action(action)
 
         _, old_wealth = self.state
+        transition_state = (new_rate, old_wealth)
 
         # Harvest proxy:
         # - If manager invests, each active forager can realize wealth as harvest
         # - If not, harvest collapses (0), matching your current placeholder behavior
-        total_harvest = self.forager.estimated_harvest(self.state) * self.num_foragers
+        total_harvest = self.forager.estimated_harvest(transition_state) * self.num_foragers
         if self.debug:
-            print(f"Manager invests: {self.manager.gives_good_coordinates(self.state)}")
-            print(f"Forager goes foraging: {self.forager.goes_foraging(self.state)}")
-            print(f"Estimated total harvest: {total_harvest}")
+            print(f"Manager invests: {self.manager.gives_good_coordinates(transition_state)}")
+            print(f"Forager goes foraging: {self.forager.goes_foraging(transition_state)}")
+            print(f"Total harvest: {total_harvest}")
 
         # Update "system wealth" (keep within [0,1] for your Box space)
         manager_budget = self.manager.get_reward((new_rate, old_wealth), total_harvest)
@@ -127,9 +129,9 @@ class ForagersEnv(Env):
 
         # Simple smooth dynamics: carry-over + harvest, clipped.
         new_wealth = manager_budget + foragers_budget * self.num_foragers
-        new_wealth = float(max(0.0, min(1.0, new_wealth)))
+        new_wealth = np.clip(new_wealth, 0.0, 1.0)
         if self.debug:
-            print(f"New wealth before clipping: {manager_budget + foragers_budget}")
+            print(f"New wealth before clipping: {manager_budget + foragers_budget * self.num_foragers}")
             print(f"New wealth after clipping: {new_wealth}")
 
         new_state: State = (new_rate, new_wealth)
@@ -151,9 +153,11 @@ class ForagersEnv(Env):
         return self.turn >= self.horizon
 
     def get_reward(self, manager_budget: float, foragers_budget: float) -> float:
-        wealth = manager_budget + foragers_budget
+        wealth = manager_budget + foragers_budget  * self.num_foragers
         inequality_penalty = (manager_budget - (foragers_budget / 3)) ** 2 / wealth if wealth > 0 else 0.0
-        return manager_budget + foragers_budget - inequality_penalty     
+        if self.debug:
+            print(f"Reward calculation: Wealth={wealth}, Inequality penalty={inequality_penalty}")
+        return wealth - inequality_penalty     
 
     def _parse_action(self, action) -> float:
         # Gym Box actions usually arrive as array([x])
