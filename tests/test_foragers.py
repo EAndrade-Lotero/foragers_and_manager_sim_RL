@@ -6,6 +6,7 @@ Run:  conda run -n RLenv python -m pytest tests/test_foragers.py -v
 
 import sys
 import os
+import time
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src", "environments"))
@@ -294,6 +295,49 @@ def test_rate_sweep():
         assert 0 <= s[0] <= 1, f"rate out of bounds at action={rate}"
         assert 0 <= s[1] <= 1, f"wealth out of bounds at action={rate}"
         assert np.isfinite(r), f"non-finite reward at action={rate}"
+
+
+# ---------------------------------------------------------------------------
+# Suite 14: Performance smoke tests
+# ---------------------------------------------------------------------------
+
+def test_step_latency_smoke():
+    """Keep step latency within a reasonable local-dev budget."""
+    env = ForagersEnv(seed=42, max_turns=200)
+    env.reset(seed=42)
+
+    # Warm-up to avoid first-call overhead bias.
+    for _ in range(5):
+        env.step(0.5)
+
+    durations = []
+    for _ in range(30):
+        t0 = time.perf_counter()
+        env.step(0.5)
+        durations.append(time.perf_counter() - t0)
+
+    avg_ms = (sum(durations) / len(durations)) * 1000.0
+    p95_ms = sorted(durations)[int(0.95 * len(durations)) - 1] * 1000.0
+
+    # Generous thresholds to avoid flaky failures on slower laptops/CI.
+    assert avg_ms < 150.0, f"Average step latency too high: {avg_ms:.2f} ms"
+    assert p95_ms < 350.0, f"P95 step latency too high: {p95_ms:.2f} ms"
+
+
+def test_reset_step_cycle_latency_smoke():
+    """Check short training-like reset/step cycles stay practical."""
+    env = ForagersEnv(seed=123, max_turns=10)
+    cycles = 20
+
+    t0 = time.perf_counter()
+    for _ in range(cycles):
+        env.reset(seed=123)
+        for _ in range(10):
+            env.step(0.5)
+    elapsed = time.perf_counter() - t0
+
+    avg_cycle_ms = (elapsed / cycles) * 1000.0
+    assert avg_cycle_ms < 1200.0, f"Average reset+10step cycle too slow: {avg_cycle_ms:.2f} ms"
 
 
 # ---------------------------------------------------------------------------
