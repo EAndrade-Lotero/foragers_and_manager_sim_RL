@@ -38,6 +38,9 @@ from game_parameters import (
     COLLECTION_CHANCE,
 )
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 def manhattan(a: Pos, b: Pos) -> int:
     return abs(a[0] - b[0]) + abs(a[1] - b[1])

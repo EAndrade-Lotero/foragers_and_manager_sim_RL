@@ -1,11 +1,16 @@
 from foragers import ForagersEnv
 
-env = ForagersEnv()
+env = ForagersEnv(seed=0, max_turns=5, persistent_world=True)
 
-state, _ = env.reset()
-print("Initial:", state)
+state, info = env.reset()
+print("reset:", state, info)
 
-for step in range(5):
+for t in range(10):
     action = env.action_space.sample()
-    state, reward, done, _, _ = env.step(action)
-    print(f"Step {step} -> state={state}, reward={reward}")
+    state, reward, done, truncated, info = env.step(action)
+    print(
+        f"t={t} action={float(action[0]):.3f} state={state} reward={reward:.3f} "
+        f"done={done} harvest={info.get('harvest')} gini={info.get('gini'):.3f} instab={info.get('instability'):.3f}"
+    )
+    if done:
+        break
