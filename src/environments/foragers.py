@@ -101,6 +101,8 @@ class ForagersEnv(Env):
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> State_Info:
         super().reset(seed=seed)
         self.state = self.initial_state
+        self.manager = Manager()
+        self.forager = Forager(Manager(), self.num_foragers)
         self.turn = 0
         return self.state, {}
 
@@ -206,8 +208,8 @@ class DiscreteForagersEnv(Env):
         self.observation_space = Box(low=0.0, high=1.0, shape=(2,), dtype=np.float32)
 
         self.name = "Foragers"
-        self.initial_state: State = np.array([np.float32(initial_rate), np.float32(initial_wealth)])
-        self.state: State = self.initial_state
+        self.initial_state = np.array([np.float32(initial_rate), np.float32(initial_wealth)])
+        self.state = self.initial_state
 
         self.num_foragers = int(num_foragers)
         self.horizon = int(horizon)
@@ -221,7 +223,10 @@ class DiscreteForagersEnv(Env):
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> State_Info:
         super().reset(seed=seed)
-        self.state = self.initial_state
+        # self.state = self.initial_state
+        self.manager = Manager()
+        self.forager = Forager(Manager(), self.num_foragers)
+        self.state = np.random.uniform(low=0.0, high=1.0, size=(2,)).astype(np.float32)  # Randomize initial state for more variability
         self.turn = 0
         return self.state, {}
 
