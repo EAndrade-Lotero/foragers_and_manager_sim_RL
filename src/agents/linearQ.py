@@ -92,11 +92,13 @@ class TilesQ():
         self.iht = IHT(self.maxSize)
         self.weights = np.zeros(self.maxSize, dtype=np.float32)
         self.active_tiles = []
+        self.num_actions = parameters["num_actions"]
             
     def my_tiles(self, state, action):
         '''
         Determines the tiles that get activated by the state
         '''
+        assert action in range(self.num_actions), f"Action {action} is out of bounds for num_actions={self.num_actions}"
         # Normalizes the state
         scaled_s = self.normalize(state)
         # Rescale for use with `tiles` using numTiles
