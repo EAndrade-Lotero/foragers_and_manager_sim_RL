@@ -6,7 +6,7 @@ from gymnasium.spaces import Box
 from typing import Tuple, Dict, Optional, Any
 
 Info = Dict[None, None]
-State = Tuple[float, float]  # (commission_rate, system_wealth)
+State = np.typing.NDArray  # (commission_rate, system_wealth)
 State_Info = Tuple[State, Info]
 Result = Tuple[State, float, bool, bool, Info]
 
@@ -81,11 +81,11 @@ class ForagersEnv(Env):
         num_foragers: int = 3,
         horizon: int = 10,
     ):
-        self.action_space = Box(low=0.0, high=1.0, shape=(1,), dtype=float)
-        self.observation_space = Box(low=0.0, high=1.0, shape=(2,), dtype=float)
+        self.action_space = Box(low=0.0, high=1.0, shape=(1,), dtype=np.float32)
+        self.observation_space = Box(low=0.0, high=1.0, shape=(2,), dtype=np.float32)
 
         self.name = "Foragers"
-        self.initial_state: State = (float(initial_rate), float(initial_wealth))
+        self.initial_state: State = np.array([np.float32(initial_rate), np.float32(initial_wealth)])
         self.state: State = self.initial_state
 
         self.num_foragers = int(num_foragers)
@@ -108,7 +108,7 @@ class ForagersEnv(Env):
         new_rate = self._parse_action(action)
 
         _, old_wealth = self.state
-        transition_state = (new_rate, old_wealth)
+        transition_state = np.array([new_rate, old_wealth], dtype=np.float32)
 
         # Harvest proxy:
         # - If manager invests, each active forager can realize wealth as harvest
@@ -120,8 +120,8 @@ class ForagersEnv(Env):
             print(f"Total harvest: {total_harvest}")
 
         # Update "system wealth" (keep within [0,1] for your Box space)
-        manager_budget = self.manager.get_reward((new_rate, old_wealth), total_harvest)
-        foragers_budget = self.forager.get_reward((new_rate, old_wealth)) 
+        manager_budget = self.manager.get_reward(transition_state, total_harvest)
+        foragers_budget = self.forager.get_reward(transition_state) 
         self.forager.manager.budget = manager_budget  # Sync manager's budget with forager's knowledge
         if self.debug:
             print(f"Manager budget after update: {self.manager.budget}")
@@ -134,7 +134,7 @@ class ForagersEnv(Env):
             print(f"New wealth before clipping: {manager_budget + foragers_budget * self.num_foragers}")
             print(f"New wealth after clipping: {new_wealth}")
 
-        new_state: State = (new_rate, new_wealth)
+        new_state: State = np.array([new_rate, new_wealth], dtype=np.float32)
         self.state = new_state
 
         # Reward 
@@ -168,11 +168,7 @@ class ForagersEnv(Env):
                 a = float(action)
         except Exception:
             a = 0.0
-        if a < 0.0:
-            a = 0.0
-        if a > 1.0:
-            a = 1.0
-        return a
+        return np.clip(a, 0.0, 1.0)
 
     def render(self):
         if self.render_mode == "human" or self.render_mode is None:
@@ -180,3 +176,11 @@ class ForagersEnv(Env):
             return None
         # rgb_array rendering not implemented in this minimal version
         return None
+    
+    @staticmethod
+    def _normalize(value: float) -> float:
+        return (value + 1.0) / 2.0
+    
+    @staticmethod
+    def _denormalize(value: float) -> float:
+        return value * 2.0 - 1.0
