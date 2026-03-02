@@ -75,47 +75,50 @@ class Episode :
                 4: simulation, episode and round information
             - learn, a boolean to determine if agent learning is enabled.
         '''
-        # Ask agent to make a decision
-        try:
-            action = self.agent.make_decision()
-        except Exception as e:
-            raise Exception('Error: Agent could not choose an action.\n\t', e)
-        # Runs the environment and obtains the next_state, reward, done, info
-        result = self.environment.step(action)            
-        next_state = self._clean_state(result[0])
-        reward = result[1]
-        done = result[2]
-        # Update records
-        self.agent.actions.append(action)
-        if hasattr(self.agent, 'next_states'):
-            self.agent.next_states.append(next_state)
-        self.agent.rewards.append(reward)
-        self.agent.dones.append(done)
-        # Prints info
-        if verbose > 3:
-            state = self.agent.states[-1]
-            print(f'\tThe state is => {state}')
-            print(f'\tAgent takes action => {action}')
-            print(f'\tThe state obtained is => {next_state}')
-            print(f'\tThe reward obtained is => {reward}')
-            print(f'\tEnvironment is finished? => {done}')
-        # Agent learns
-        if learn:
+        if self.done:
+            print("Environment is in a final state!")
+        else:
+            # Ask agent to make a decision
             try:
-                self.agent.update()
-            except:
+                action = self.agent.make_decision()
+            except Exception as e:
+                raise Exception('Error: Agent could not choose an action.\n\t', e)
+            # Runs the environment and obtains the next_state, reward, done, info
+            result = self.environment.step(action)            
+            next_state = self._clean_state(result[0])
+            reward = result[1]
+            done = result[2]
+            # Update records
+            self.agent.actions.append(action)
+            if hasattr(self.agent, 'next_states'):
+                self.agent.next_states.append(next_state)
+            self.agent.rewards.append(reward)
+            self.agent.dones.append(done)
+            # Prints info
+            if verbose > 3:
+                state = self.agent.states[-1]
+                print(f'\tThe state is => {state}')
+                print(f'\tAgent takes action => {action}')
+                print(f'\tThe state obtained is => {next_state}')
+                print(f'\tThe reward obtained is => {reward}')
+                print(f'\tEnvironment is finished? => {done}')
+            # Agent learns
+            if learn:
                 try:
-                    self.agent.update(next_state, reward, done)
-                except Exception as e:
-                    raise Exception(e)
-        # Update records
-        self.agent.states.append(next_state)
-        # Update round counter
-        self.T += 1
-        # Update environment "is-finished?"
-        self.done = done
-        # lengths = f'#states:{len(self.agent.states)} -- #actions:{len(self.agent.actions)} -- #rewards:{len(self.agent.rewards)} -- #dones:{len(self.agent.dones)}'
-        # print('===>', lengths)
+                    self.agent.update()
+                except:
+                    try:
+                        self.agent.update(next_state, reward, done)
+                    except Exception as e:
+                        raise Exception(e)
+            # Update records
+            self.agent.states.append(next_state)
+            # Update round counter
+            self.T += 1
+            # Update environment "is-finished?"
+            self.done = done
+            # lengths = f'#states:{len(self.agent.states)} -- #actions:{len(self.agent.actions)} -- #rewards:{len(self.agent.rewards)} -- #dones:{len(self.agent.dones)}'
+            # print('===>', lengths)
 
     def run(
                 self, 
