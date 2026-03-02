@@ -1,3 +1,8 @@
+# Data and images
+./data
+./images
+./models
+
 # OS generated files
 .DS_Store
 
