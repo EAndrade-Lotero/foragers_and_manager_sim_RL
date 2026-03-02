@@ -117,6 +117,7 @@ class PlotGridValues :
         self.plot_V_values(V, ax=ax[1])
         ax[0].set_title('Policy', fontsize='18')
         ax[1].set_title('Max values', fontsize='18')
+        return fig, ax
 
 
 class PlotQApprox2D :
@@ -183,7 +184,7 @@ class PlotQApprox2D :
         plot = PlotGridValues(shape=(self.mesh_size,self.mesh_size), 
                               dict_acciones=self.dict_acciones,
                               axes_labels=axes_labels)
-        plot.plot_policy_and_values(policy=policy, V=values)
+        return plot.plot_policy_and_values(policy=policy, V=values)
 
     def create_q_table(self):
         # Create mesh from bidimensional states
@@ -212,6 +213,7 @@ class PlotQApprox2D :
         X, Y = self.create_mesh()
         xticklabels = [str(round(x, max_deci)) for x in X]
         yticklabels = [str(round(y, max_deci)) for y in Y]
+        yticklabels.reverse()
         return [xticklabels, yticklabels]
 
     def create_mesh(self) -> Tuple[np.ndarray, np.ndarray]:
