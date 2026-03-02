@@ -9,7 +9,7 @@ from utils.interpreters import id_state
 
 class PlotGridValues :
 
-    font_size = 'normal'
+    font_size = 'medium'
     
     def __init__(
                 self, 
