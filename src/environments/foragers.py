@@ -2,7 +2,7 @@ import numpy as np
 import gymnasium as gym
 
 from gymnasium import Env
-from gymnasium.spaces import Box
+from gymnasium.spaces import Box, Discrete
 from typing import Tuple, Dict, Optional, Any
 
 Info = Dict[None, None]
@@ -69,7 +69,7 @@ class ForagersEnv(Env):
     """
     Action: new commission rate in [0, 1]
     State: (commission_rate, system_wealth)
-    Reward: a continuous proxy for 'total harvest' (can be extended with fairness later)
+    Reward: a continuous proxy for wealth and fairness
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
@@ -173,6 +173,129 @@ class ForagersEnv(Env):
     def render(self):
         if self.render_mode == "human" or self.render_mode is None:
             print(f"Turn={self.turn}  State={self.state} Manager budget={self.manager.budget:.2f} Forager budget={self.forager.budget:.2f}")
+            return None
+        # rgb_array rendering not implemented in this minimal version
+        return None
+    
+    @staticmethod
+    def _normalize(value: float) -> float:
+        return (value + 1.0) / 2.0
+    
+    @staticmethod
+    def _denormalize(value: float) -> float:
+        return value * 2.0 - 1.0
+    
+
+class DiscreteForagersEnv(Env):
+    """
+    Action: new commission rate in {0, 0.1, 0.2, ..., 1.0}
+    State: (commission_rate, system_wealth)
+    Reward: a continuous proxy for wealth and fairness
+    """
+
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 4}
+
+    def __init__(
+        self,
+        initial_rate: float = 0.5,
+        initial_wealth: float = 0.5,
+        num_foragers: int = 3,
+        horizon: int = 10,
+    ):
+        self.action_space = Discrete(n=11)  # 0 to 10 (representing 0.0 to 1.0 in steps of 0.1)
+        self.observation_space = Box(low=0.0, high=1.0, shape=(2,), dtype=np.float32)
+
+        self.name = "Foragers"
+        self.initial_state: State = np.array([np.float32(initial_rate), np.float32(initial_wealth)])
+        self.state: State = self.initial_state
+
+        self.num_foragers = int(num_foragers)
+        self.horizon = int(horizon)
+        self.turn = 0
+
+        self.manager = Manager()
+        self.forager = Forager(Manager(), self.num_foragers)
+
+        self.render_mode: Optional[str] = None
+        self.debug = False
+
+    def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> State_Info:
+        super().reset(seed=seed)
+        self.state = self.initial_state
+        self.turn = 0
+        return self.state, {}
+
+    def step(self, action: float) -> Result:
+        new_rate = self._parse_action(action)
+
+        _, old_wealth = self.state
+        transition_state = np.array([new_rate, old_wealth], dtype=np.float32)
+
+        # Harvest proxy:
+        # - If manager invests, each active forager can realize wealth as harvest
+        # - If not, harvest collapses (0), matching your current placeholder behavior
+        total_harvest = self.forager.estimated_harvest(transition_state) * self.num_foragers
+        if self.debug:
+            print(f"Manager invests: {self.manager.gives_good_coordinates(transition_state)}")
+            print(f"Forager goes foraging: {self.forager.goes_foraging(transition_state)}")
+            print(f"Total harvest: {total_harvest}")
+
+        # Update "system wealth" (keep within [0,1] for your Box space)
+        manager_budget = self.manager.get_reward(transition_state, total_harvest)
+        foragers_budget = self.forager.get_reward(transition_state) 
+        self.forager.manager.budget = manager_budget  # Sync manager's budget with forager's knowledge
+        if self.debug:
+            print(f"Manager budget after update: {self.manager.budget}")
+            print(f"Forager budget after update: {self.forager.budget}")
+
+        # Simple smooth dynamics: carry-over + harvest, clipped.
+        new_wealth = manager_budget + foragers_budget * self.num_foragers
+        new_wealth = np.clip(new_wealth, 0.0, 1.0)
+        if self.debug:
+            print(f"New wealth before clipping: {manager_budget + foragers_budget * self.num_foragers}")
+            print(f"New wealth after clipping: {new_wealth}")
+
+        new_state: State = np.array([new_rate, new_wealth], dtype=np.float32)
+        self.state = new_state
+
+        # Reward 
+        reward = self.get_reward(manager_budget, foragers_budget)
+
+        self.turn += 1
+        done = self.get_done()
+
+        return new_state, reward, done, False, {}
+
+    def get_done(self) -> bool:
+        if self.manager.budget <= 0.0:
+            return True
+        if self.forager.budget <= 0.0:
+            return True
+        return self.turn >= self.horizon
+
+    def get_reward(self, manager_budget: float, foragers_budget: float) -> float:
+        wealth = manager_budget + foragers_budget  * self.num_foragers
+        inequality_penalty = (manager_budget - (foragers_budget / 3)) ** 2 / wealth if wealth > 0 else 0.0
+        if self.debug:
+            print(f"Reward calculation: Wealth={wealth}, Inequality penalty={inequality_penalty}")
+        return wealth - inequality_penalty     
+
+    def _parse_action(self, action) -> float:
+        # Gym Box actions usually arrive as array([x])
+        try:
+            if hasattr(action, "__len__") and not isinstance(action, (str, bytes)):
+                a = action[0]
+            else:
+                a = action
+        except Exception:
+            a = 0
+        # Convert discrete action (0-10) to continuous value (0.0-1.0)
+        a = a / 10.0
+        return np.clip(a, 0.0, 1.0)
+
+    def render(self):
+        if self.render_mode == "human" or self.render_mode is None:
+            print(f"Turn={self.turn} --- State={self.state} --- Manager budget={self.manager.budget:.2f} --- Forager budget={self.forager.budget:.2f}")
             return None
         # rgb_array rendering not implemented in this minimal version
         return None
