@@ -17,17 +17,25 @@ from copy import deepcopy
 from inspect import currentframe, getframeinfo
 from typing import Dict, Tuple, Optional, Union
 
-import environments.envs as E
+# import environments.envs as E
+import environments.foragers as E
 import agents.agentsCS as ApproxQ
-import agents.agentsPG as ApproxP
+# import agents.agentsPG as ApproxP
 import agents.agentsNN as ApproxNN
-import agents.TableAgents as TableA
+# import agents.TableAgents as TableA
 #import agents.agentsPG as ApproxPG
 from utils.interaction import Episode, Experiment
 from utils.plot_utils import Plot
 
 SCRIPT_PATH = Path.cwd() / Path('..').resolve()
-OWN_ENV_LIST = ['ABC', 'OneDGridWroldEnv', 'GridworldEnv', 'PitLaberynth']
+OWN_ENV_LIST = [
+#    'ABC', 
+#    'OneDGridWroldEnv', 
+#    'GridworldEnv', 
+#    'PitLaberynth',
+   'DiscreteForagersEnv',
+]
+
 
 
 class Performer :
