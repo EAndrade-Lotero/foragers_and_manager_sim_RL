@@ -8,6 +8,8 @@ from seaborn import lineplot, histplot, heatmap, color_palette
 from utils.interpreters import id_state
 
 class PlotGridValues :
+
+    font_size = 'normal'
     
     def __init__(
                 self, 
@@ -54,7 +56,7 @@ class PlotGridValues :
                 linecolor="black",
                 xticklabels=xticklabels,
                 yticklabels=yticklabels,
-                annot_kws={"fontsize": "xx-large"},
+                annot_kws={"fontsize": self.font_size},
             ).set(title="Action per state")
             plt.plot()
         else:
@@ -68,7 +70,7 @@ class PlotGridValues :
                 linecolor="black",
                 xticklabels=xticklabels,
                 yticklabels=yticklabels,
-                annot_kws={"fontsize": "xx-large"},
+                annot_kws={"fontsize": self.font_size},
                 ax = ax
             ).set(title="Action per state")
 
@@ -92,7 +94,7 @@ class PlotGridValues :
                 linecolor="black",
                 xticklabels=xticklabels,
                 yticklabels=yticklabels,
-                annot_kws={"fontsize": "x-large"},
+                annot_kws={"fontsize": self.font_size},
             ).set(title="V-values")
         else:
             heatmap(
@@ -105,7 +107,7 @@ class PlotGridValues :
                 linecolor="black",
                 xticklabels=xticklabels,
                 yticklabels=yticklabels,
-                annot_kws={"fontsize": "x-large"},
+                annot_kws={"fontsize": self.font_size},
                 ax = ax
             ).set(title="V-values")
 
