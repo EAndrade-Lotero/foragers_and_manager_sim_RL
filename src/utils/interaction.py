@@ -48,7 +48,8 @@ class Episode :
         self.model_name = model_name
         self.num_rounds = num_rounds
         self.done = False
-        self.T = 0
+        self.truncated = False
+        self.t = 0
         self.id = id
         self.sleep_time = 0.3
         self._clean_state = state_interpreter
@@ -77,6 +78,8 @@ class Episode :
         '''
         if self.done:
             print("Environment is in a final state!")
+        elif self.truncated:
+            print("Environment is Truncated!")
         else:
             # Ask agent to make a decision
             try:
@@ -88,6 +91,7 @@ class Episode :
             next_state = self._clean_state(result[0])
             reward = result[1]
             done = result[2]
+            truncated = result[3]
             # Update records
             self.agent.actions.append(action)
             if hasattr(self.agent, 'next_states'):
@@ -102,6 +106,7 @@ class Episode :
                 print(f'\tThe state obtained is => {next_state}')
                 print(f'\tThe reward obtained is => {reward}')
                 print(f'\tEnvironment is finished? => {done}')
+                print(f'\tEnvironment is truncated? => {truncated}')
             # Agent learns
             if learn:
                 try:
@@ -114,9 +119,11 @@ class Episode :
             # Update records
             self.agent.states.append(next_state)
             # Update round counter
-            self.T += 1
+            self.t += 1
             # Update environment "is-finished?"
             self.done = done
+            # Update environment "is-truncated?"
+            self.truncated = truncated
             # lengths = f'#states:{len(self.agent.states)} -- #actions:{len(self.agent.actions)} -- #rewards:{len(self.agent.rewards)} -- #dones:{len(self.agent.dones)}'
             # print('===>', lengths)
 
@@ -140,7 +147,7 @@ class Episode :
         self.reset()
         # Play the specified number of rounds
         for round in range(self.num_rounds):
-            if not self.done:
+            if not self.done and not self.truncated:
                 if verbose > 2:
                     print('\n' + '-'*10 + f'Round {round}' + '-'*10 + '\n')
                 self.play_round(verbose=verbose, learn=learn)                
@@ -176,8 +183,8 @@ class Episode :
             next_states=next_states
         )
         # Gather data
-        length = min(self.T, len(states))
-        # print(f'length:{length} --- self.T:{self.T} --- len(states):{len(states)}')
+        length = min(self.t, len(states))
+        # print(f'length:{length} --- self.t:{self.t} --- len(states):{len(states)}')
         df = pd.DataFrame.from_dict({
             "model": [self.model_name] * length,
             "environment": [self.env_name] * length,
@@ -210,7 +217,7 @@ class Episode :
         # --------------------------------------------------------------
         # Sanity check 1: Do not keep information from previous episodes
         # --------------------------------------------------------------
-        length = min(self.T, len(states))
+        length = min(self.t, len(states))
         states = states[-length:]
         actions = actions[-length:]
         rewards = rewards[-length:]
@@ -257,9 +264,10 @@ class Episode :
             # Otherwise, append initial state to state history
             self.agent.states.append(state)
         # Restart round count
-        self.T = 0
+        self.t = 0
         # Environment is not done
         self.done = False
+        self.truncated = False
 
     def renderize(
                 self, 

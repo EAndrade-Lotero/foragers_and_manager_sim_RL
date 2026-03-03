@@ -6,17 +6,17 @@ from gymnasium.spaces import Box, Discrete
 from typing import (Tuple, Dict, Optional, Any, Union)
 
 Info = Dict[None, None]
-State = np.typing.NDArray[np.float32]  # (commission_rate, system_wealth)
+State = np.ndarray[np.float32]  # (commission_rate, system_wealth)
 State_Info = Tuple[State, Info]
 Result = Tuple[State, float, bool, bool, Info]
 
 
 class Manager:
-    max_budget: float = 0.1
+    max_budget: float = 0.2
     optimal_investment: float = 0.07
 
     def __init__(self) -> None:
-        self.budget = self.max_budget
+        self.budget: float = self.max_budget / 2
 
     def gives_good_coordinates(self, state: State) -> bool:
         if self.budget < self.optimal_investment:
@@ -33,18 +33,18 @@ class Manager:
             new_budget = remaining + rate * harvest
         else:
             new_budget = self.budget
-        self.budget = new_budget
+        self.budget = np.clip(new_budget, 0.0, self.max_budget)
         return self.budget
 
 
 class Forager:
-    max_budget: float = 0.1
+    max_budget: float = 0.2
     optimal_investment: float = 0.07
 
     def __init__(self, manager: Manager, num_foragers: int) -> None:
         self.manager = manager
         self.num_foragers = num_foragers
-        self.budget = self.max_budget
+        self.budget: float = self.max_budget / 2
 
     def goes_foraging(self, state: State) -> bool:
         rate, wealth = state
@@ -67,7 +67,7 @@ class Forager:
             # print(f"\tManager good?: {self.manager.gives_good_coordinates(state)}")
             # print(f"\tEstimated harvest: {self.estimated_harvest(state)}")
             new_budget = (1 - rate) * my_harvest + remaining
-            self.budget = new_budget
+            self.budget = np.clip(new_budget, 0.0, self.max_budget)
         return self.budget
 
 
@@ -83,7 +83,7 @@ class ForagersEnv(Env):
     def __init__(
         self,
         initial_rate: float = 0.5,
-        initial_wealth: float = 0.5,
+        initial_wealth: float = 1.0,
         num_foragers: int = 3,
         num_discrete_actions: int = 11,
         _max_episode_steps: int = 10,
@@ -98,7 +98,7 @@ class ForagersEnv(Env):
         self._max_episode_steps = int(_max_episode_steps)
         self.turn = 0
         self.render_mode: Optional[str] = None
-        self.debug = True
+        self.debug = False
         self.super_debug = False
 
         self.manager = Manager()
@@ -151,7 +151,7 @@ class ForagersEnv(Env):
         new_wealth = np.clip(new_wealth, 0.0, 1.0)
         if self.debug:
             # print(f"New wealth before clipping: {manager_budget + foragers_budget * self.num_foragers}")
-            print(f"New wealth after clipping: {new_wealth}")
+            print(f"New wealth clipping: {new_wealth}")
 
         new_state = np.array([new_rate, new_wealth], dtype=np.float32)
         self.state = new_state
@@ -160,22 +160,28 @@ class ForagersEnv(Env):
         reward = float(self.get_reward(manager_budget, foragers_budget))
 
         self.turn += 1
-        done = self.get_done()
+        done, truncated = self.get_done()
 
         if self.super_debug:
             self.render()
 
-        return new_state, reward, done, False, {}
+        return new_state, reward, done, truncated, {}
 
-    def get_done(self) -> bool:
+    def get_done(self) -> Tuple[bool, bool]:
+        done = False
+        truncated = False
         if self.manager.budget <= 0.0:
-            return True
+            done = True
         if self.forager.budget <= 0.0:
-            return True
-        return self.turn >= self._max_episode_steps
+            done = True
+        if self.turn >= self._max_episode_steps:
+            truncated = True
+        return done, truncated
 
     def get_reward(self, manager_budget: float, foragers_budget: float) -> float:
-        wealth = manager_budget + foragers_budget  * self.num_foragers
+        numerator_wealth = manager_budget + foragers_budget  * self.num_foragers
+        denominator_wealth = self.manager.max_budget + self.forager.max_budget * self.num_foragers
+        wealth = numerator_wealth / denominator_wealth
         inequality_penalty = (manager_budget - (foragers_budget / 3)) ** 2 / wealth if wealth > 0 else 0.0
         reward = wealth - inequality_penalty
         if self.debug:
@@ -199,10 +205,10 @@ class ForagersEnv(Env):
     def _denormalize(value: float) -> float:
         return value * 2.0 - 1.0
     
-    def _parse_action(self, action) -> float:
+    def _parse_action(self, action: Union[int, np.ndarray]) -> float:
         # Gym Box actions usually arrive as array([x])
         try:
-            if hasattr(action, "__len__") and not isinstance(action, (str, bytes)):
+            if isinstance(action, np.ndarray):
                 a = float(action[0])
             else:
                 a = float(action)
