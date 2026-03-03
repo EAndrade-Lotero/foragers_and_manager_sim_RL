@@ -10,6 +10,8 @@ State = np.ndarray[np.float32]  # (commission_rate, system_wealth)
 State_Info = Tuple[State, Info]
 Result = Tuple[State, float, bool, bool, Info]
 
+self_interest_scale = 0.1
+alpha = 0.5
 
 class Manager:
     max_budget: float = 0.2
@@ -24,7 +26,7 @@ class Manager:
         rate, wealth = state
         estimated_reward = rate * wealth
         # print(f"Manager estimated reward: {rate} * {wealth} = {estimated_reward}, Budget: {self.budget}")
-        return estimated_reward > self.budget
+        return estimated_reward > self.budget * self_interest_scale
 
     def get_reward(self, state: State, harvest: float) -> float:
         rate = state[0]
@@ -50,7 +52,7 @@ class Forager:
         rate, wealth = state
         estimated_reward = (1 - rate) * wealth
         # print(f"\tForager estimated reward: {(1 - rate)} * {wealth} = {estimated_reward}, Budget: {self.budget}")
-        return estimated_reward > self.budget
+        return estimated_reward > self.budget * self_interest_scale
 
     def estimated_harvest(self, state: State) -> float:
         # print(f"=====>: Manager budget: {self.manager.budget}  Wealth * Rate: {np.prod(state)}")
@@ -115,10 +117,10 @@ class ForagersEnv(Env):
         return self.state, {}
     
     def _choose_random_initial_state(self) -> State:
-        # commision_rate = np.random.choice([0.0, 0.5, 1.0])  # Randomly choose from discrete rates
-        # wealth = np.random.choice([0.0, 0.5, 1.0])  # Randomly choose from discrete wealth levels
-        # return np.array([commision_rate, wealth], dtype=np.float32)
-        return self.initial_state
+        commision_rate = np.random.choice([0.0, 0.5, 1.0])  # Randomly choose from discrete rates
+        wealth = np.random.choice([0.0, 0.5, 1.0])  # Randomly choose from discrete wealth levels
+        return np.array([commision_rate, wealth], dtype=np.float32)
+        # return self.initial_state
     
     def step(self, action: float) -> Result:
         if self.super_debug:
@@ -184,6 +186,7 @@ class ForagersEnv(Env):
         wealth = numerator_wealth / denominator_wealth
         inequality_penalty = (manager_budget - (foragers_budget / 3)) ** 2 / wealth if wealth > 0 else 0.0
         reward = wealth - inequality_penalty
+        # reward = alpha * wealth - ((1 - alpha) * inequality_penalty)
         if self.debug:
             print(f"Reward calculation: Wealth={wealth}, Inequality penalty={inequality_penalty}")
             print(f"Reward: {reward}")
