@@ -10,11 +10,11 @@ State = np.ndarray[np.float32]  # (commission_rate, system_wealth)
 State_Info = Tuple[State, Info]
 Result = Tuple[State, float, bool, bool, Info]
 
-self_interest_scale = 0.1
-alpha = 0.5
+self_interest_scale = 1
+max_budget_all = 0.15
 
 class Manager:
-    max_budget: float = 0.2
+    max_budget: float = max_budget_all
     optimal_investment: float = 0.07
 
     def __init__(self) -> None:
@@ -40,7 +40,7 @@ class Manager:
 
 
 class Forager:
-    max_budget: float = 0.2
+    max_budget: float = max_budget_all
     optimal_investment: float = 0.07
 
     def __init__(self, manager: Manager, num_foragers: int) -> None:
@@ -106,6 +106,7 @@ class ForagersEnv(Env):
         self.manager = Manager()
         self.forager = Forager(Manager(), self.num_foragers)
 
+        self.inequalities = []
 
     def reset(self, *, seed: Optional[int] = None, options: Optional[Dict[str, Any]] = None) -> State_Info:
         super().reset(seed=seed)
@@ -114,6 +115,9 @@ class ForagersEnv(Env):
         self.manager = Manager()
         self.forager = Forager(Manager(), self.num_foragers)
         self.turn = 0
+
+        self.inequalities = []
+
         return self.state, {}
     
     def _choose_random_initial_state(self) -> State:
@@ -140,7 +144,7 @@ class ForagersEnv(Env):
             print(f"Forager goes foraging: {self.forager.goes_foraging(transition_state)}")
             print(f"Total harvest: {total_harvest}")
 
-        # Update "system wealth" (keep within [0,1] for your Box space)
+        # Update individual budgets
         manager_budget = self.manager.get_reward(transition_state, total_harvest)
         foragers_budget = self.forager.get_reward(transition_state) 
         self.forager.manager.budget = manager_budget  # Sync manager's budget with forager's knowledge
@@ -148,18 +152,19 @@ class ForagersEnv(Env):
             print(f"\tManager budget after update: {self.manager.budget}")
             print(f"\tForager budget after update: {self.forager.budget}")
 
-        # Simple smooth dynamics: carry-over + harvest, clipped.
-        new_wealth = manager_budget + foragers_budget * self.num_foragers
-        new_wealth = np.clip(new_wealth, 0.0, 1.0)
+        # Update system wealth
+        reward, new_wealth, inequality_penalty = self.get_reward(manager_budget, foragers_budget)
+        reward = float(reward)
         if self.debug:
             # print(f"New wealth before clipping: {manager_budget + foragers_budget * self.num_foragers}")
-            print(f"New wealth clipping: {new_wealth}")
+            print(f"New wealth: {new_wealth}")
+            print(f"Inequality: {inequality_penalty}")
+            print(f"Reward: {reward}")
 
         new_state = np.array([new_rate, new_wealth], dtype=np.float32)
         self.state = new_state
 
-        # Reward 
-        reward = float(self.get_reward(manager_budget, foragers_budget))
+        self.inequalities.append(inequality_penalty)
 
         self.turn += 1
         done, truncated = self.get_done()
@@ -186,12 +191,11 @@ class ForagersEnv(Env):
         wealth = numerator_wealth / denominator_wealth
         inequality_penalty = (manager_budget - (foragers_budget / 3)) ** 2 / wealth if wealth > 0 else 0.0
         reward = wealth - inequality_penalty
-        # reward = alpha * wealth - ((1 - alpha) * inequality_penalty)
         if self.debug:
             print(f"Reward calculation: Wealth={wealth}, Inequality penalty={inequality_penalty}")
             print(f"Reward: {reward}")
         assert isinstance(reward, Union[float, np.float32]), f"Expected reward to be a float, got {type(reward)}"
-        return reward     
+        return reward, wealth, inequality_penalty     
 
     def render(self):
         if self.render_mode == "human" or self.render_mode is None:
